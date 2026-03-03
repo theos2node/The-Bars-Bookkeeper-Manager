@@ -14,6 +14,7 @@ struct OrdersView: View {
     @State private var statusFilter: OrderStatus?
     @State private var showVendorSheet = false
     @State private var sendingOrderId: String?
+    @State private var qualityGate: ConductorQualitySnapshot?
 
     private var theme: AppTheme { AppTheme(colorScheme: colorScheme) }
 
@@ -39,6 +40,11 @@ struct OrdersView: View {
         VStack(spacing: 0) {
             header
             Divider().background(theme.borderSubtle)
+            if let qualityGate = qualityGate {
+                QualityGateBanner(qualityGate: qualityGate, theme: theme, hideWhenPass: true)
+                    .padding(.horizontal, AppSpacing.lg)
+                    .padding(.top, AppSpacing.md)
+            }
 
             if isLoading {
                 LoadingView(message: "Loading orders...")
@@ -194,8 +200,10 @@ struct OrdersView: View {
         do {
             async let ordersTask = APIService.shared.fetchOrders(token: token)
             async let vendorsTask = APIService.shared.fetchVendors(token: token)
+            async let qualityTask = APIService.shared.fetchConductorQualityLatest(token: token)
             orders = try await ordersTask
             vendors = try await vendorsTask
+            qualityGate = try await qualityTask
         } catch {
             authService.handleAuthError(error)
             errorMessage = error.localizedDescription
@@ -210,9 +218,19 @@ struct OrdersView: View {
         do {
             let response = try await APIService.shared.generateOrders(token: token)
             orders.insert(contentsOf: response.orders, at: 0)
+            if let returnedGate = response.qualityGate {
+                qualityGate = returnedGate
+            } else {
+                qualityGate = try await APIService.shared.fetchConductorQualityLatest(token: token)
+            }
         } catch {
             authService.handleAuthError(error)
-            errorMessage = error.localizedDescription
+            if error.localizedDescription == "quality_gate_blocked" {
+                errorMessage = "Order generation blocked by quality gate. Resolve critical data quality cards first."
+                qualityGate = try? await APIService.shared.fetchConductorQualityLatest(token: token)
+            } else {
+                errorMessage = error.localizedDescription
+            }
         }
         isGenerating = false
     }

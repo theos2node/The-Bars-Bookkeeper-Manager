@@ -65,4 +65,5 @@ enum PredictionStatus: String {
 struct ForecastResponse: Codable {
     let run: ForecastRun?
     let forecasts: [ForecastRow]
+    let qualityGate: ConductorQualitySnapshot?
 }

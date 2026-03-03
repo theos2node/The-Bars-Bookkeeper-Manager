@@ -65,6 +65,7 @@ struct GenerateOrdersResponse: Codable {
     let urgentCount: Int?
     let standardCount: Int?
     let message: String?
+    let qualityGate: ConductorQualitySnapshot?
 }
 
 struct SendOrderResponse: Codable {

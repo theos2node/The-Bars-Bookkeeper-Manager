@@ -266,6 +266,79 @@ final class APIService: ObservableObject {
         return response.run
     }
 
+    // MARK: - Conductor
+
+    func fetchConductorCards(
+        token: String,
+        status: String? = nil,
+        cardType: String? = nil,
+        severity: String? = nil,
+        limit: Int? = nil
+    ) async throws -> [ConductorCard] {
+        var query: [String: String] = [:]
+        if let status, !status.isEmpty { query["status"] = status }
+        if let cardType, !cardType.isEmpty { query["cardType"] = cardType }
+        if let severity, !severity.isEmpty { query["severity"] = severity }
+        if let limit { query["limit"] = String(limit) }
+        let response: ConductorCardsResponse = try await request(
+            path: "/conductor/cards",
+            token: token,
+            query: query.isEmpty ? nil : query
+        )
+        return response.cards
+    }
+
+    func fetchConductorCardActions(token: String, cardId: String) async throws -> [ConductorCardAction] {
+        let response: ConductorCardActionsResponse = try await request(
+            path: "/conductor/cards/\(cardId)/actions",
+            token: token
+        )
+        return response.actions
+    }
+
+    func updateConductorCard(
+        token: String,
+        cardId: String,
+        status: String,
+        resolution: String? = nil
+    ) async throws -> ConductorCard {
+        struct Body: Encodable { let status: String; let resolution: String? }
+        let response: ConductorCardResponse = try await request(
+            method: "PATCH",
+            path: "/conductor/cards/\(cardId)",
+            token: token,
+            body: Body(status: status, resolution: resolution)
+        )
+        return response.card
+    }
+
+    func replayConductorCard(token: String, cardId: String) async throws -> ConductorCardReplayResponse {
+        struct EmptyBody: Encodable {}
+        return try await request(
+            method: "POST",
+            path: "/conductor/cards/\(cardId)/replay",
+            token: token,
+            body: EmptyBody()
+        )
+    }
+
+    func fetchConductorQualityLatest(token: String) async throws -> ConductorQualitySnapshot? {
+        let response: ConductorQualityLatestResponse = try await request(
+            path: "/conductor/quality/latest",
+            token: token
+        )
+        return response.quality
+    }
+
+    func fetchConductorQualityHistory(token: String, limit: Int = 100) async throws -> [ConductorQualitySnapshot] {
+        let response: ConductorQualityHistoryResponse = try await request(
+            path: "/conductor/quality/history",
+            token: token,
+            query: ["limit": String(limit)]
+        )
+        return response.snapshots
+    }
+
     // MARK: - Requests
 
     func fetchRequests(token: String, status: String? = nil) async throws -> [StockRequest] {
@@ -376,8 +449,190 @@ struct ImportRun: Codable, Identifiable {
     let error: String?
     let document_date: String?
     let file_classification: String?
+    let affects_inventory: Bool?
+    let affects_forecast: Bool?
+    let quality_gate_status: String?
+    let ingest_strategy: String?
+    let evidence_score: Double?
     let started_at: String?
     let finished_at: String?
+}
+
+struct ConductorCardsResponse: Codable {
+    let cards: [ConductorCard]
+}
+
+struct ConductorCardResponse: Codable {
+    let card: ConductorCard
+}
+
+struct ConductorCardActionsResponse: Codable {
+    let actions: [ConductorCardAction]
+}
+
+struct ConductorQualityLatestResponse: Codable {
+    let quality: ConductorQualitySnapshot?
+}
+
+struct ConductorQualityHistoryResponse: Codable {
+    let snapshots: [ConductorQualitySnapshot]
+}
+
+struct ConductorCardReplayResponse: Codable {
+    let queued: Bool
+    let importRunId: String?
+    let reason: String?
+}
+
+struct ConductorCard: Codable, Identifiable {
+    let id: String
+    let import_run_id: String?
+    let record_id: String?
+    let source_issue_id: String?
+    let card_type: String
+    let severity: String
+    let status: String
+    let title: String
+    let summary: String?
+    let detail: JSONValue
+    let confidence: Double
+    let auto_action: String
+    let resolution: String?
+    let resolution_detail: JSONValue?
+    let dedupe_key: String
+    let created_at: String?
+    let updated_at: String?
+    let resolved_at: String?
+}
+
+struct ConductorCardAction: Codable, Identifiable {
+    let id: String
+    let card_id: String
+    let actor_type: String
+    let actor_id: String?
+    let action_type: String
+    let payload: JSONValue
+    let created_at: String?
+}
+
+struct ConductorQualitySnapshot: Codable, Identifiable {
+    let id: String
+    let status: String
+    let window_days: Int
+    let drift_ratio: Double
+    let unresolved_medium: Int
+    let unresolved_high: Int
+    let unresolved_critical: Int
+    let metrics: JSONValue
+    let reasons: [String]
+    let trigger: String
+    let created_at: String?
+}
+
+enum JSONValue: Codable, Equatable {
+    case string(String)
+    case number(Double)
+    case bool(Bool)
+    case object([String: JSONValue])
+    case array([JSONValue])
+    case null
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+
+        if container.decodeNil() {
+            self = .null
+            return
+        }
+        if let boolValue = try? container.decode(Bool.self) {
+            self = .bool(boolValue)
+            return
+        }
+        if let intValue = try? container.decode(Int.self) {
+            self = .number(Double(intValue))
+            return
+        }
+        if let doubleValue = try? container.decode(Double.self) {
+            self = .number(doubleValue)
+            return
+        }
+        if let stringValue = try? container.decode(String.self) {
+            self = .string(stringValue)
+            return
+        }
+        if let objectValue = try? container.decode([String: JSONValue].self) {
+            self = .object(objectValue)
+            return
+        }
+        if let arrayValue = try? container.decode([JSONValue].self) {
+            self = .array(arrayValue)
+            return
+        }
+
+        throw DecodingError.typeMismatch(
+            JSONValue.self,
+            DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "Unsupported JSON value")
+        )
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        switch self {
+        case .string(let value):
+            try container.encode(value)
+        case .number(let value):
+            try container.encode(value)
+        case .bool(let value):
+            try container.encode(value)
+        case .object(let value):
+            try container.encode(value)
+        case .array(let value):
+            try container.encode(value)
+        case .null:
+            try container.encodeNil()
+        }
+    }
+
+    var prettyPrinted: String {
+        let object: Any
+        switch self {
+        case .string(let value): object = value
+        case .number(let value): object = value
+        case .bool(let value): object = value
+        case .object(let value): object = value.mapValues { $0.toJSONObject() }
+        case .array(let value): object = value.map { $0.toJSONObject() }
+        case .null: object = NSNull()
+        }
+        guard JSONSerialization.isValidJSONObject(object),
+              let data = try? JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys]),
+              let output = String(data: data, encoding: .utf8) else {
+            switch self {
+            case .string(let value): return value
+            case .number(let value): return String(value)
+            case .bool(let value): return String(value)
+            case .null: return "null"
+            case .object, .array: return ""
+            }
+        }
+        return output
+    }
+
+    private func toJSONObject() -> Any {
+        switch self {
+        case .string(let value):
+            return value
+        case .number(let value):
+            return value
+        case .bool(let value):
+            return value
+        case .object(let value):
+            return value.mapValues { $0.toJSONObject() }
+        case .array(let value):
+            return value.map { $0.toJSONObject() }
+        case .null:
+            return NSNull()
+        }
+    }
 }
 
 struct UploadInitiateResponse: Codable {

@@ -24,6 +24,8 @@ struct DashboardView: View {
 
                 Group {
                     switch selectedTab {
+                    case .inbox:
+                        ConductorInboxView()
                     case .inventory:
                         InventoryView()
                     case .requests:
@@ -83,6 +85,11 @@ private struct ImportQueueItem: Identifiable, Equatable {
     var error: String?
     var fileClassification: String?
     var documentDate: String?
+    var affectsInventory: Bool?
+    var affectsForecast: Bool?
+    var qualityGateStatus: String?
+    var ingestStrategy: String?
+    var evidenceScore: Double?
     var updatedAt: Date
 }
 
@@ -358,6 +365,11 @@ struct ImportsView: View {
                 error: nil,
                 fileClassification: nil,
                 documentDate: nil,
+                affectsInventory: nil,
+                affectsForecast: nil,
+                qualityGateStatus: nil,
+                ingestStrategy: nil,
+                evidenceScore: nil,
                 updatedAt: Date()
             ),
             at: 0
@@ -418,6 +430,11 @@ struct ImportsView: View {
                 updated.error = run.error
                 updated.fileClassification = run.file_classification
                 updated.documentDate = normalizeDateString(run.document_date)
+                updated.affectsInventory = run.affects_inventory
+                updated.affectsForecast = run.affects_forecast
+                updated.qualityGateStatus = run.quality_gate_status
+                updated.ingestStrategy = run.ingest_strategy
+                updated.evidenceScore = run.evidence_score
                 updated.updatedAt = Date()
                 return updated
             }
@@ -504,6 +521,11 @@ struct ImportsView: View {
         let error: String?
         let fileClassification: String?
         let documentDate: String?
+        let affectsInventory: Bool?
+        let affectsForecast: Bool?
+        let qualityGateStatus: String?
+        let ingestStrategy: String?
+        let evidenceScore: Double?
         let updatedAt: Date
     }
 
@@ -525,6 +547,11 @@ struct ImportsView: View {
                 error: row.error,
                 fileClassification: row.fileClassification,
                 documentDate: row.documentDate,
+                affectsInventory: row.affectsInventory,
+                affectsForecast: row.affectsForecast,
+                qualityGateStatus: row.qualityGateStatus,
+                ingestStrategy: row.ingestStrategy,
+                evidenceScore: row.evidenceScore,
                 updatedAt: row.updatedAt
             )
         }
@@ -543,6 +570,11 @@ struct ImportsView: View {
                 error: item.error,
                 fileClassification: item.fileClassification,
                 documentDate: item.documentDate,
+                affectsInventory: item.affectsInventory,
+                affectsForecast: item.affectsForecast,
+                qualityGateStatus: item.qualityGateStatus,
+                ingestStrategy: item.ingestStrategy,
+                evidenceScore: item.evidenceScore,
                 updatedAt: item.updatedAt
             )
         }
@@ -579,6 +611,31 @@ private struct ImportQueueRow: View {
                 }
                 if let date = item.documentDate {
                     Text("Document date: \(date)")
+                        .font(AppTypography.small)
+                        .foregroundColor(theme.textSecondary)
+                }
+                if let strategy = item.ingestStrategy {
+                    Text("Ingest strategy: \(strategy)")
+                        .font(AppTypography.small)
+                        .foregroundColor(theme.textSecondary)
+                }
+                if let evidence = item.evidenceScore {
+                    Text("Evidence score: \(String(format: "%.2f", evidence))")
+                        .font(AppTypography.small)
+                        .foregroundColor(theme.textSecondary)
+                }
+                if let gate = item.qualityGateStatus {
+                    Text("Quality gate: \(gate)")
+                        .font(AppTypography.small)
+                        .foregroundColor(theme.textSecondary)
+                }
+                if let affectsInventory = item.affectsInventory {
+                    Text("Affects inventory: \(affectsInventory ? "yes" : "no")")
+                        .font(AppTypography.small)
+                        .foregroundColor(theme.textSecondary)
+                }
+                if let affectsForecast = item.affectsForecast {
+                    Text("Affects forecast: \(affectsForecast ? "yes" : "no")")
                         .font(AppTypography.small)
                         .foregroundColor(theme.textSecondary)
                 }
@@ -638,6 +695,553 @@ private struct ImportQueueRow: View {
             index += 1
         }
         return index == 0 ? "\(Int(value)) \(units[index])" : String(format: "%.1f %@", value, units[index])
+    }
+}
+
+private enum ConductorCardFilter: String {
+    case open = "open"
+    case autoResolved = "auto_resolved"
+
+    var label: String {
+        switch self {
+        case .open:
+            return "Open"
+        case .autoResolved:
+            return "Auto-Resolved"
+        }
+    }
+}
+
+struct QualityGateBanner: View {
+    let qualityGate: ConductorQualitySnapshot
+    let theme: AppTheme
+    var hideWhenPass: Bool = false
+
+    private var status: String {
+        qualityGate.status.lowercased()
+    }
+
+    private var foreground: Color {
+        switch status {
+        case "block": return theme.error
+        case "warn": return theme.warning
+        default: return theme.success
+        }
+    }
+
+    private var background: Color {
+        switch status {
+        case "block": return theme.errorSubtle
+        case "warn": return theme.warningSubtle
+        default: return theme.successSubtle
+        }
+    }
+
+    @ViewBuilder
+    var body: some View {
+        if !(hideWhenPass && status == "pass") {
+            VStack(alignment: .leading, spacing: AppSpacing.xs) {
+                Text("Quality Gate: \(qualityGate.status.uppercased())")
+                    .font(AppTypography.captionMedium)
+                    .foregroundColor(foreground)
+
+                Text(
+                    "Drift \(String(format: "%.4f", qualityGate.drift_ratio)) | Critical \(qualityGate.unresolved_critical) | High \(qualityGate.unresolved_high) | Medium \(qualityGate.unresolved_medium)"
+                )
+                .font(AppTypography.small)
+                .foregroundColor(foreground)
+
+                if !qualityGate.reasons.isEmpty {
+                    Text(qualityGate.reasons.joined(separator: " • "))
+                        .font(AppTypography.small)
+                        .foregroundColor(foreground)
+                        .lineLimit(2)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(AppSpacing.sm)
+            .background(background)
+            .cornerRadius(AppRadius.sm)
+            .overlay(
+                RoundedRectangle(cornerRadius: AppRadius.sm)
+                    .stroke(foreground.opacity(0.35), lineWidth: 1)
+            )
+        }
+    }
+}
+
+struct ConductorInboxView: View {
+    @EnvironmentObject private var authService: AuthService
+    @Environment(\.colorScheme) private var colorScheme
+
+    @State private var filter: ConductorCardFilter = .open
+    @State private var cards: [ConductorCard] = []
+    @State private var selectedCardId: String?
+    @State private var actions: [ConductorCardAction] = []
+    @State private var qualityGate: ConductorQualitySnapshot?
+    @State private var isLoading = true
+    @State private var isLoadingActions = false
+    @State private var isMutating = false
+    @State private var errorMessage: String?
+    @State private var searchQuery = ""
+
+    private var theme: AppTheme { AppTheme(colorScheme: colorScheme) }
+    private var canManageInbox: Bool { authService.isManager }
+
+    private var selectedCard: ConductorCard? {
+        cards.first(where: { $0.id == selectedCardId })
+    }
+
+    private var filteredCards: [ConductorCard] {
+        let query = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !query.isEmpty else { return cards }
+        return cards.filter { card in
+            card.title.lowercased().contains(query)
+                || (card.summary?.lowercased().contains(query) ?? false)
+                || card.card_type.lowercased().contains(query)
+        }
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            header
+            Divider().background(theme.borderSubtle)
+
+            if let qualityGate = qualityGate {
+                QualityGateBanner(qualityGate: qualityGate, theme: theme, hideWhenPass: false)
+                    .padding(.horizontal, AppSpacing.lg)
+                    .padding(.top, AppSpacing.md)
+            }
+
+            if !canManageInbox {
+                EmptyStateView(
+                    icon: "lock.fill",
+                    title: "Manager access required",
+                    subtitle: "Conductor Inbox is available for manager or owner roles."
+                )
+            } else if isLoading {
+                LoadingView(message: "Loading conductor inbox...")
+            } else if let errorMessage = errorMessage {
+                EmptyStateView(icon: "exclamationmark.triangle", title: "Error", subtitle: errorMessage)
+            } else {
+                content
+            }
+        }
+        .task {
+            await loadData()
+        }
+        .task(id: selectedCardId) {
+            await loadActionsForSelection()
+        }
+        .onChange(of: filter) { _, _ in
+            Task { await loadData() }
+        }
+    }
+
+    private var header: some View {
+        HStack(spacing: AppSpacing.md) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Conductor Inbox")
+                    .font(AppTypography.titleMedium)
+                    .foregroundColor(theme.textPrimary)
+                Text("Open cards, auto-resolution feed, and replay controls")
+                    .font(AppTypography.caption)
+                    .foregroundColor(theme.textSecondary)
+            }
+
+            Spacer()
+
+            HStack(spacing: AppSpacing.xs) {
+                FilterPill(label: "Open", isActive: filter == .open, theme: theme) {
+                    filter = .open
+                }
+                FilterPill(label: "Auto-Resolved", isActive: filter == .autoResolved, theme: theme) {
+                    filter = .autoResolved
+                }
+            }
+
+            SearchBar(text: $searchQuery, placeholder: "Search cards...")
+                .frame(width: 240)
+
+            Button {
+                Task { await loadData() }
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 11))
+                    Text("Refresh")
+                        .font(AppTypography.captionMedium)
+                }
+                .foregroundColor(theme.textSecondary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(theme.bgHover)
+                .cornerRadius(AppRadius.sm)
+            }
+            .buttonStyle(.plain)
+            .disabled(isLoading || isMutating)
+        }
+        .padding(.horizontal, AppSpacing.lg)
+        .padding(.vertical, AppSpacing.md)
+    }
+
+    private var content: some View {
+        HStack(spacing: 0) {
+            VStack(spacing: 0) {
+                HStack {
+                    Text("\(filteredCards.count) card(s)")
+                        .font(AppTypography.small)
+                        .foregroundColor(theme.textTertiary)
+                    Spacer()
+                }
+                .padding(.horizontal, AppSpacing.lg)
+                .padding(.vertical, AppSpacing.sm)
+                .background(theme.bgSecondary)
+
+                Divider().background(theme.borderSubtle)
+
+                if filteredCards.isEmpty {
+                    EmptyStateView(icon: "tray", title: "No cards", subtitle: "No conductor cards matched this filter.")
+                } else {
+                    ScrollView {
+                        LazyVStack(spacing: 0) {
+                            ForEach(filteredCards) { card in
+                                ConductorCardRowView(
+                                    card: card,
+                                    isSelected: selectedCardId == card.id,
+                                    theme: theme
+                                )
+                                .onTapGesture {
+                                    selectedCardId = card.id
+                                }
+                                Divider().background(theme.borderSubtle).padding(.leading, AppSpacing.lg)
+                            }
+                        }
+                    }
+                }
+            }
+            .frame(width: 430)
+
+            Divider().background(theme.borderSubtle)
+
+            ConductorCardDetailPanel(
+                card: selectedCard,
+                actions: actions,
+                theme: theme,
+                isLoadingActions: isLoadingActions,
+                isMutating: isMutating,
+                onReplay: { await replaySelectedCard() },
+                onResolve: { await updateSelectedCard(status: "resolved", resolution: "user_resolved") },
+                onDismiss: { await updateSelectedCard(status: "dismissed", resolution: "user_dismissed") },
+                onReopen: { await updateSelectedCard(status: "open", resolution: "reopened") }
+            )
+            .frame(maxWidth: .infinity)
+        }
+    }
+
+    private func loadData() async {
+        guard canManageInbox, let token = authService.token else { return }
+        isLoading = true
+        errorMessage = nil
+        do {
+            async let cardsTask = APIService.shared.fetchConductorCards(
+                token: token,
+                status: filter.rawValue,
+                limit: 200
+            )
+            async let qualityTask = APIService.shared.fetchConductorQualityLatest(token: token)
+
+            let fetchedCards = try await cardsTask
+            let latestQuality = try await qualityTask
+            cards = fetchedCards
+            qualityGate = latestQuality
+
+            if let selectedCardId, fetchedCards.contains(where: { $0.id == selectedCardId }) {
+                self.selectedCardId = selectedCardId
+            } else {
+                self.selectedCardId = fetchedCards.first?.id
+            }
+        } catch {
+            authService.handleAuthError(error)
+            errorMessage = error.localizedDescription
+            cards = []
+            actions = []
+            selectedCardId = nil
+        }
+        isLoading = false
+    }
+
+    private func loadActionsForSelection() async {
+        guard canManageInbox, let token = authService.token, let selectedCardId else {
+            actions = []
+            return
+        }
+        isLoadingActions = true
+        do {
+            actions = try await APIService.shared.fetchConductorCardActions(token: token, cardId: selectedCardId)
+        } catch {
+            authService.handleAuthError(error)
+            errorMessage = error.localizedDescription
+            actions = []
+        }
+        isLoadingActions = false
+    }
+
+    private func updateSelectedCard(status: String, resolution: String) async {
+        guard canManageInbox, let token = authService.token, let selectedCard else { return }
+        isMutating = true
+        do {
+            _ = try await APIService.shared.updateConductorCard(
+                token: token,
+                cardId: selectedCard.id,
+                status: status,
+                resolution: resolution
+            )
+            await loadData()
+            await loadActionsForSelection()
+        } catch {
+            authService.handleAuthError(error)
+            errorMessage = error.localizedDescription
+        }
+        isMutating = false
+    }
+
+    private func replaySelectedCard() async {
+        guard canManageInbox, let token = authService.token, let selectedCard else { return }
+        isMutating = true
+        do {
+            _ = try await APIService.shared.replayConductorCard(token: token, cardId: selectedCard.id)
+            await loadData()
+            await loadActionsForSelection()
+        } catch {
+            authService.handleAuthError(error)
+            errorMessage = error.localizedDescription
+        }
+        isMutating = false
+    }
+}
+
+private struct ConductorCardRowView: View {
+    let card: ConductorCard
+    let isSelected: Bool
+    let theme: AppTheme
+
+    private var severityColor: Color {
+        switch card.severity {
+        case "critical":
+            return theme.error
+        case "high":
+            return theme.warning
+        case "medium":
+            return theme.textLink
+        default:
+            return theme.textSecondary
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.xs) {
+            HStack(spacing: AppSpacing.sm) {
+                Text(card.title)
+                    .font(AppTypography.bodyMedium)
+                    .foregroundColor(theme.textPrimary)
+                    .lineLimit(1)
+                Spacer()
+                Circle()
+                    .fill(severityColor)
+                    .frame(width: 8, height: 8)
+            }
+
+            Text("\(card.card_type) · \(card.severity) · \(card.status)")
+                .font(AppTypography.small)
+                .foregroundColor(theme.textTertiary)
+                .lineLimit(1)
+
+            if let summary = card.summary, !summary.isEmpty {
+                Text(summary)
+                    .font(AppTypography.small)
+                    .foregroundColor(theme.textSecondary)
+                    .lineLimit(2)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, AppSpacing.lg)
+        .padding(.vertical, 10)
+        .background(isSelected ? theme.bgSecondary : Color.clear)
+        .contentShape(Rectangle())
+    }
+}
+
+private struct ConductorCardDetailPanel: View {
+    let card: ConductorCard?
+    let actions: [ConductorCardAction]
+    let theme: AppTheme
+    let isLoadingActions: Bool
+    let isMutating: Bool
+    let onReplay: () async -> Void
+    let onResolve: () async -> Void
+    let onDismiss: () async -> Void
+    let onReopen: () async -> Void
+
+    var body: some View {
+        Group {
+            if let card {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: AppSpacing.md) {
+                        Text(card.title)
+                            .font(AppTypography.titleSmall)
+                            .foregroundColor(theme.textPrimary)
+
+                        Text("\(card.card_type) · \(card.severity) · confidence \(String(format: "%.2f", card.confidence))")
+                            .font(AppTypography.caption)
+                            .foregroundColor(theme.textSecondary)
+
+                        if let summary = card.summary, !summary.isEmpty {
+                            Text(summary)
+                                .font(AppTypography.body)
+                                .foregroundColor(theme.textSecondary)
+                        }
+
+                        actionButtons(card: card)
+
+                        Divider().background(theme.borderSubtle)
+
+                        Text("Card Detail")
+                            .font(AppTypography.headline)
+                            .foregroundColor(theme.textPrimary)
+                        jsonBlock(card.detail.prettyPrinted)
+
+                        Divider().background(theme.borderSubtle)
+
+                        Text("Action Timeline")
+                            .font(AppTypography.headline)
+                            .foregroundColor(theme.textPrimary)
+
+                        if isLoadingActions {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle())
+                        } else if actions.isEmpty {
+                            Text("No actions logged.")
+                                .font(AppTypography.body)
+                                .foregroundColor(theme.textTertiary)
+                        } else {
+                            VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                                ForEach(actions) { action in
+                                    VStack(alignment: .leading, spacing: AppSpacing.xs) {
+                                        Text("\(action.action_type) · \(action.actor_type)")
+                                            .font(AppTypography.captionMedium)
+                                            .foregroundColor(theme.textPrimary)
+                                        Text(formatDate(action.created_at))
+                                            .font(AppTypography.small)
+                                            .foregroundColor(theme.textTertiary)
+                                        jsonBlock(action.payload.prettyPrinted)
+                                    }
+                                    .padding(AppSpacing.sm)
+                                    .background(theme.bgCard)
+                                    .cornerRadius(AppRadius.sm)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: AppRadius.sm)
+                                            .stroke(theme.borderSubtle, lineWidth: 1)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    .padding(AppSpacing.lg)
+                }
+            } else {
+                EmptyStateView(icon: "list.bullet.rectangle", title: "Select a card", subtitle: "Choose a card to inspect details and actions.")
+            }
+        }
+        .background(theme.bgSurface)
+    }
+
+    @ViewBuilder
+    private func actionButtons(card: ConductorCard) -> some View {
+        HStack(spacing: AppSpacing.sm) {
+            Button {
+                Task { await onReplay() }
+            } label: {
+                Text("Replay Run")
+                    .font(AppTypography.captionMedium)
+                    .foregroundColor(theme.textPrimary)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(theme.bgHover)
+                    .cornerRadius(AppRadius.sm)
+            }
+            .buttonStyle(.plain)
+            .disabled(isMutating)
+
+            Button {
+                Task { await onResolve() }
+            } label: {
+                Text("Resolve")
+                    .font(AppTypography.captionMedium)
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(theme.success)
+                    .cornerRadius(AppRadius.sm)
+            }
+            .buttonStyle(.plain)
+            .disabled(isMutating)
+
+            Button {
+                Task { await onDismiss() }
+            } label: {
+                Text("Dismiss")
+                    .font(AppTypography.captionMedium)
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(theme.warning)
+                    .cornerRadius(AppRadius.sm)
+            }
+            .buttonStyle(.plain)
+            .disabled(isMutating)
+
+            if card.status != "open" {
+                Button {
+                    Task { await onReopen() }
+                } label: {
+                    Text("Reopen")
+                        .font(AppTypography.captionMedium)
+                        .foregroundColor(theme.textSecondary)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(theme.bgHover)
+                        .cornerRadius(AppRadius.sm)
+                }
+                .buttonStyle(.plain)
+                .disabled(isMutating)
+            }
+        }
+    }
+
+    private func jsonBlock(_ text: String) -> some View {
+        Text(text.isEmpty ? "{}" : text)
+            .font(AppTypography.mono)
+            .foregroundColor(theme.textSecondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(AppSpacing.sm)
+            .background(theme.bgCard)
+            .cornerRadius(AppRadius.sm)
+            .overlay(
+                RoundedRectangle(cornerRadius: AppRadius.sm)
+                    .stroke(theme.borderSubtle, lineWidth: 1)
+            )
+    }
+
+    private func formatDate(_ raw: String?) -> String {
+        guard let raw, !raw.isEmpty else { return "—" }
+        if let date = ISO8601DateFormatter().date(from: raw) {
+            let formatter = DateFormatter()
+            formatter.dateStyle = .medium
+            formatter.timeStyle = .short
+            return formatter.string(from: date)
+        }
+        return raw
     }
 }
 

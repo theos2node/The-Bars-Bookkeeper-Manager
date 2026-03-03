@@ -6,6 +6,7 @@ struct PredictionsView: View {
 
     @State private var forecasts: [ForecastRow] = []
     @State private var forecastRun: ForecastRun?
+    @State private var qualityGate: ConductorQualitySnapshot?
     @State private var isLoading = true
     @State private var isRunning = false
     @State private var errorMessage: String?
@@ -52,6 +53,11 @@ struct PredictionsView: View {
         VStack(spacing: 0) {
             header
             Divider().background(theme.borderSubtle)
+            if let qualityGate = qualityGate {
+                QualityGateBanner(qualityGate: qualityGate, theme: theme, hideWhenPass: true)
+                    .padding(.horizontal, AppSpacing.lg)
+                    .padding(.top, AppSpacing.md)
+            }
 
             if isLoading {
                 LoadingView(message: "Loading predictions...")
@@ -213,9 +219,11 @@ struct PredictionsView: View {
             let response = try await APIService.shared.fetchForecastLatest(token: token)
             forecasts = response.forecasts
             forecastRun = response.run
+            qualityGate = response.qualityGate
         } catch {
             authService.handleAuthError(error)
             errorMessage = error.localizedDescription
+            qualityGate = nil
         }
         isLoading = false
     }

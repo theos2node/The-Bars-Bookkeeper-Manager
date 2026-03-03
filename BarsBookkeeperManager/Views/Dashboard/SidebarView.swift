@@ -1,6 +1,7 @@
 import SwiftUI
 
 enum SidebarTab: String, CaseIterable, Identifiable {
+    case inbox = "Inbox"
     case inventory = "Inventory"
     case requests = "Requests"
     case imports = "Imports"
@@ -12,6 +13,7 @@ enum SidebarTab: String, CaseIterable, Identifiable {
 
     var icon: String {
         switch self {
+        case .inbox: return "bolt.horizontal.circle"
         case .inventory: return "square.grid.2x2"
         case .requests: return "doc.text"
         case .imports: return "tray.and.arrow.down"
