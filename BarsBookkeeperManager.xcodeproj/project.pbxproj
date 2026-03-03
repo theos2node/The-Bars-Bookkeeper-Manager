@@ -56,7 +56,7 @@
 		A20000000000000000000015 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		A20000000000000000000016 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A20000000000000000000017 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
-		A20000000000000000000099 /* BarsBookkeeperManager.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BarsBookkeeperManager.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A20000000000000000000099 /* Bars Bookkeeper Manager.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Bars Bookkeeper Manager.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -70,20 +70,12 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		A40000000000000000000001 /* = Begin main group = */ = {
+		A40000000000000000000001 = {
 			isa = PBXGroup;
 			children = (
 				A40000000000000000000002 /* BarsBookkeeperManager */,
 				A40000000000000000000003 /* Products */,
 			);
-			sourceTree = "<group>";
-		};
-		A40000000000000000000003 /* Products */ = {
-			isa = PBXGroup;
-			children = (
-				A20000000000000000000099 /* BarsBookkeeperManager.app */,
-			);
-			name = Products;
 			sourceTree = "<group>";
 		};
 		A40000000000000000000002 /* BarsBookkeeperManager */ = {
@@ -98,6 +90,14 @@
 				A40000000000000000000015 /* Preview Content */,
 			);
 			path = BarsBookkeeperManager;
+			sourceTree = "<group>";
+		};
+		A40000000000000000000003 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				A20000000000000000000099 /* Bars Bookkeeper Manager.app */,
+			);
+			name = Products;
 			sourceTree = "<group>";
 		};
 		A40000000000000000000010 /* App */ = {
@@ -245,7 +245,7 @@
 			);
 			name = BarsBookkeeperManager;
 			productName = BarsBookkeeperManager;
-			productReference = A20000000000000000000099 /* BarsBookkeeperManager.app */;
+			productReference = A20000000000000000000099 /* Bars Bookkeeper Manager.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -271,7 +271,7 @@
 				en,
 				Base,
 			);
-			mainGroup = A40000000000000000000001 /* = Begin main group = */;
+			mainGroup = A40000000000000000000001;
 			productRefGroup = A40000000000000000000003 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -454,7 +454,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"BarsBookkeeperManager/Preview Content\"";
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = 752C43F9P6;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -485,7 +485,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"BarsBookkeeperManager/Preview Content\"";
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = 752C43F9P6;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -530,7 +530,6 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
-
 	};
 	rootObject = A80000000000000000000001 /* Project object */;
 }

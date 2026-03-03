@@ -18,6 +18,6 @@ struct ContentView: View {
             }
         }
         .animation(.easeInOut(duration: 0.3), value: authService.isAuthenticated)
-        .preferredColorScheme(nil) // Respect system setting
+        .preferredColorScheme(.dark) // Force dark mode
     }
 }

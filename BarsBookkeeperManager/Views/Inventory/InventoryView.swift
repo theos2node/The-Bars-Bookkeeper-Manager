@@ -164,39 +164,63 @@ struct InventoryView: View {
     private var contentView: some View {
         HStack(spacing: 0) {
             // Item list
-            ScrollView {
-                LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
-                    ForEach(groupedByCategory, id: \.0) { category, categoryItems in
-                        Section {
-                            ForEach(categoryItems) { item in
-                                InventoryRow(
-                                    item: item,
-                                    isSelected: selectedItem?.id == item.id,
-                                    theme: theme
-                                )
-                                .onTapGesture {
-                                    withAnimation(.easeInOut(duration: 0.15)) {
-                                        selectedItem = item
+            VStack(spacing: 0) {
+                HStack(spacing: 0) {
+                    Text("Item")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Text("On Hand")
+                        .frame(width: 100, alignment: .trailing)
+                    Text("PAR")
+                        .frame(width: 90, alignment: .trailing)
+                    Text("Status")
+                        .frame(width: 72, alignment: .center)
+                }
+                .font(AppTypography.smallMedium)
+                .foregroundColor(theme.textTertiary)
+                .textCase(.uppercase)
+                .tracking(0.3)
+                .padding(.horizontal, AppSpacing.lg)
+                .padding(.vertical, 10)
+                .background(theme.bgSecondary)
+
+                Divider().background(theme.borderSubtle)
+
+                ScrollView {
+                    LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
+                        ForEach(groupedByCategory, id: \.0) { category, categoryItems in
+                            Section {
+                                ForEach(categoryItems) { item in
+                                    InventoryRow(
+                                        item: item,
+                                        isSelected: selectedItem?.id == item.id,
+                                        theme: theme
+                                    )
+                                    .onTapGesture {
+                                        withAnimation(.easeInOut(duration: 0.15)) {
+                                            selectedItem = item
+                                        }
                                     }
+
+                                    Divider().background(theme.borderSubtle).padding(.leading, AppSpacing.lg)
                                 }
-                            }
-                        } header: {
-                            HStack {
-                                Text(category)
-                                    .font(AppTypography.smallMedium)
-                                    .foregroundColor(theme.textTertiary)
-                                    .textCase(.uppercase)
-                                    .tracking(0.5)
+                            } header: {
+                                HStack {
+                                    Text(category)
+                                        .font(AppTypography.smallMedium)
+                                        .foregroundColor(theme.textTertiary)
+                                        .textCase(.uppercase)
+                                        .tracking(0.5)
 
-                                Spacer()
+                                    Spacer()
 
-                                Text("\(categoryItems.count)")
-                                    .font(AppTypography.small)
-                                    .foregroundColor(theme.textTertiary)
+                                    Text("\(categoryItems.count)")
+                                        .font(AppTypography.small)
+                                        .foregroundColor(theme.textTertiary)
+                                }
+                                .padding(.horizontal, AppSpacing.lg)
+                                .padding(.vertical, AppSpacing.sm)
+                                .background(theme.bgSecondary)
                             }
-                            .padding(.horizontal, AppSpacing.lg)
-                            .padding(.vertical, AppSpacing.sm)
-                            .background(theme.bgSecondary)
                         }
                     }
                 }
@@ -221,12 +245,28 @@ struct InventoryView: View {
         errorMessage = nil
 
         do {
-            items = try await APIService.shared.fetchOnHand(token: token)
+            let onHandItems = try await APIService.shared.fetchOnHand(token: token)
+            let forecastResponse = try? await APIService.shared.fetchForecastLatest(token: token)
+            items = mergePredictionPar(into: onHandItems, forecasts: forecastResponse?.forecasts ?? [])
         } catch {
             authService.handleAuthError(error)
             errorMessage = error.localizedDescription
         }
         isLoading = false
+    }
+
+    private func mergePredictionPar(into onHandItems: [OnHandItem], forecasts: [ForecastRow]) -> [OnHandItem] {
+        var parBySku: [String: Double] = [:]
+        for forecast in forecasts {
+            if let par = forecast.effective_weekly_par ?? forecast.par_level {
+                parBySku[forecast.sku_id] = par
+            }
+        }
+
+        return onHandItems.map { item in
+            guard let sharedPar = parBySku[item.sku_id] else { return item }
+            return item.withEffectiveWeeklyPar(sharedPar)
+        }
     }
 }
 
@@ -238,52 +278,62 @@ struct InventoryRow: View {
     let theme: AppTheme
 
     var body: some View {
-        HStack(spacing: AppSpacing.md) {
+        HStack(spacing: 0) {
             // Icon
-            ZStack {
-                RoundedRectangle(cornerRadius: AppRadius.sm)
-                    .fill(theme.bgIcon)
-                    .frame(width: 36, height: 36)
+            HStack(spacing: AppSpacing.md) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: AppRadius.sm)
+                        .fill(theme.bgIcon)
+                        .frame(width: 36, height: 36)
 
-                if let icon = item.icon, !icon.isEmpty {
-                    Text(icon)
-                        .font(.system(size: 18))
-                } else {
-                    Text(String(item.name.prefix(1)).uppercased())
-                        .font(AppTypography.captionMedium)
-                        .foregroundColor(theme.textSecondary)
+                    if let icon = item.icon, !icon.isEmpty {
+                        Text(icon)
+                            .font(.system(size: 18))
+                    } else {
+                        Text(String(item.name.prefix(1)).uppercased())
+                            .font(AppTypography.captionMedium)
+                            .foregroundColor(theme.textSecondary)
+                    }
+                }
+
+                // Name & category
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(item.name)
+                        .font(AppTypography.bodyMedium)
+                        .foregroundColor(theme.textPrimary)
+                        .lineLimit(1)
+
+                    if let category = item.category_name {
+                        Text(category)
+                            .font(AppTypography.small)
+                            .foregroundColor(theme.textTertiary)
+                    }
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
-            // Name & category
-            VStack(alignment: .leading, spacing: 2) {
-                Text(item.name)
-                    .font(AppTypography.bodyMedium)
-                    .foregroundColor(theme.textPrimary)
-                    .lineLimit(1)
+            Text(formatQuantity(item.on_hand))
+                .font(AppTypography.bodyMedium)
+                .foregroundColor(theme.textPrimary)
+                .frame(width: 100, alignment: .trailing)
 
-                if let category = item.category_name {
-                    Text(category)
-                        .font(AppTypography.small)
+            Group {
+                if let par = item.displayPar {
+                    Text(formatQuantity(par))
+                        .font(AppTypography.bodyMedium)
+                        .foregroundColor(theme.textSecondary)
+                } else {
+                    Text("—")
+                        .font(AppTypography.body)
                         .foregroundColor(theme.textTertiary)
                 }
             }
+            .frame(width: 90, alignment: .trailing)
 
-            Spacer()
-
-            // Quantity
-            VStack(alignment: .trailing, spacing: 2) {
-                Text(formatQuantity(item.on_hand))
-                    .font(AppTypography.bodyMedium)
-                    .foregroundColor(theme.textPrimary)
-
-                Text(item.unit)
-                    .font(AppTypography.small)
-                    .foregroundColor(theme.textTertiary)
+            HStack {
+                statusIndicator(for: item.statusLevel)
             }
-
-            // Status dot
-            statusIndicator(for: item.statusLevel)
+            .frame(width: 72, alignment: .center)
         }
         .padding(.horizontal, AppSpacing.lg)
         .padding(.vertical, AppSpacing.sm + 2)
@@ -363,13 +413,13 @@ struct InventoryDetailPanel: View {
                 // Details grid
                 VStack(spacing: AppSpacing.md) {
                     DetailRow(label: "On Hand", value: "\(formatQuantity(item.on_hand)) \(item.unit)", theme: theme)
-                    DetailRow(label: "Par Level", value: item.par_level != nil ? "\(formatQuantity(item.par_level!)) \(item.unit)" : "Not set", theme: theme)
+                    DetailRow(label: "Par Level", value: item.displayPar.map { "\(formatQuantity($0)) \(item.unit)" } ?? "Not set", theme: theme)
                     DetailRow(label: "Lead Time", value: item.lead_time_days != nil ? "\(item.lead_time_days!) days" : "Not set", theme: theme)
                     DetailRow(label: "Unit", value: item.unit, theme: theme)
                 }
 
                 // Par level progress
-                if let par = item.par_level, par > 0 {
+                if let par = item.displayPar, par > 0 {
                     VStack(alignment: .leading, spacing: AppSpacing.sm) {
                         Text("Stock Level")
                             .font(AppTypography.captionMedium)

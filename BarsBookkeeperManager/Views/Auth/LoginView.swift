@@ -35,33 +35,24 @@ struct LoginView: View {
         ZStack {
             LinearGradient(
                 colors: [
-                    Color(hex: "#1a1a2e"),
-                    Color(hex: "#16213e"),
-                    Color(hex: "#0f3460")
+                    AppColors.Dark.bgPrimary,
+                    AppColors.Dark.bgSecondary
                 ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
 
             VStack(spacing: AppSpacing.lg) {
-                Image(systemName: "wineglass.fill")
-                    .font(.system(size: 64))
-                    .foregroundColor(.white.opacity(0.9))
+                Image("AppLogo")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 132, height: 132)
+                    .clipShape(RoundedRectangle(cornerRadius: 24))
+                    .shadow(color: .black.opacity(0.25), radius: 10, x: 0, y: 6)
 
                 Text("Bars Bookkeeper")
                     .font(.system(size: 32, weight: .bold, design: .default))
                     .foregroundColor(.white)
-
-                Text("Manager")
-                    .font(.system(size: 20, weight: .medium, design: .default))
-                    .foregroundColor(.white.opacity(0.7))
-                    .tracking(4)
-                    .textCase(.uppercase)
-
-                Divider()
-                    .background(.white.opacity(0.2))
-                    .frame(width: 120)
-                    .padding(.vertical, AppSpacing.sm)
 
                 Text("Inventory management,\nforecasting & ordering\nfor your bar.")
                     .font(AppTypography.body)

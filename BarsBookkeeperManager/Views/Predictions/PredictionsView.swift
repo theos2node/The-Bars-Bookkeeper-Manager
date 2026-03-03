@@ -30,7 +30,6 @@ struct PredictionsView: View {
             }
         }
 
-        // Sort: worst status first
         result.sort { a, b in
             if a.predictionStatus != b.predictionStatus {
                 return statusOrder(a.predictionStatus) < statusOrder(b.predictionStatus)
@@ -145,23 +144,52 @@ struct PredictionsView: View {
 
     private var contentView: some View {
         HStack(spacing: 0) {
-            // Forecast list
-            ScrollView {
-                LazyVStack(spacing: AppSpacing.sm) {
-                    ForEach(filteredForecasts) { forecast in
-                        PredictionRow(
-                            forecast: forecast,
-                            isSelected: selectedForecast?.id == forecast.id,
-                            theme: theme
-                        )
-                        .onTapGesture {
-                            withAnimation(.easeInOut(duration: 0.15)) {
-                                selectedForecast = forecast
+            // Forecast table
+            VStack(spacing: 0) {
+                // Column headers
+                HStack(spacing: 0) {
+                    Text("Item")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Text("On Hand")
+                        .frame(width: 100, alignment: .trailing)
+                    Text("PAR")
+                        .frame(width: 90, alignment: .trailing)
+                    Text("Days Left")
+                        .frame(width: 90, alignment: .trailing)
+                    Text("Order Qty")
+                        .frame(width: 100, alignment: .trailing)
+                    Text("Status")
+                        .frame(width: 72, alignment: .center)
+                }
+                .font(AppTypography.smallMedium)
+                .foregroundColor(theme.textTertiary)
+                .textCase(.uppercase)
+                .tracking(0.3)
+                .padding(.horizontal, AppSpacing.lg)
+                .padding(.vertical, 10)
+                .background(theme.bgSecondary)
+
+                Divider().background(theme.borderSubtle)
+
+                // Rows
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(filteredForecasts) { forecast in
+                            PredictionRow(
+                                forecast: forecast,
+                                isSelected: selectedForecast?.id == forecast.id,
+                                theme: theme
+                            )
+                            .onTapGesture {
+                                withAnimation(.easeInOut(duration: 0.15)) {
+                                    selectedForecast = forecast
+                                }
                             }
+
+                            Divider().background(theme.borderSubtle).padding(.leading, AppSpacing.lg)
                         }
                     }
                 }
-                .padding(AppSpacing.lg)
             }
 
             // Detail panel
@@ -198,7 +226,6 @@ struct PredictionsView: View {
 
         do {
             _ = try await APIService.shared.runForecast(token: token)
-            // Wait briefly then reload
             try? await Task.sleep(nanoseconds: 2_000_000_000)
             await loadData()
         } catch {
@@ -217,7 +244,7 @@ struct PredictionsView: View {
     }
 }
 
-// MARK: - Prediction Row
+// MARK: - Prediction Row (consistent table layout)
 
 struct PredictionRow: View {
     let forecast: ForecastRow
@@ -225,81 +252,84 @@ struct PredictionRow: View {
     let theme: AppTheme
 
     var body: some View {
-        HStack(spacing: AppSpacing.md) {
-            // Status indicator
-            Circle()
-                .fill(statusColor)
-                .frame(width: 10, height: 10)
+        HStack(spacing: 0) {
+            // Item name + status dot
+            HStack(spacing: AppSpacing.sm) {
+                Circle()
+                    .fill(statusColor)
+                    .frame(width: 8, height: 8)
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(forecast.name)
-                    .font(AppTypography.bodyMedium)
-                    .foregroundColor(theme.textPrimary)
-                    .lineLimit(1)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(forecast.name)
+                        .font(AppTypography.bodyMedium)
+                        .foregroundColor(theme.textPrimary)
+                        .lineLimit(1)
 
-                if let category = forecast.category_name {
-                    Text(category)
-                        .font(AppTypography.small)
-                        .foregroundColor(theme.textTertiary)
+                    if let category = forecast.category_name {
+                        Text(category)
+                            .font(AppTypography.small)
+                            .foregroundColor(theme.textTertiary)
+                    }
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
-            Spacer()
+            // On Hand
+            Text(fmtQty(forecast.on_hand))
+                .font(AppTypography.bodyMedium)
+                .foregroundColor(theme.textPrimary)
+                .frame(width: 100, alignment: .trailing)
 
-            // On hand
-            VStack(alignment: .trailing, spacing: 2) {
-                Text(formatQuantity(forecast.on_hand))
-                    .font(AppTypography.bodyMedium)
-                    .foregroundColor(theme.textPrimary)
-                Text("on hand")
-                    .font(AppTypography.small)
-                    .foregroundColor(theme.textTertiary)
-            }
-
-            // Days left
-            VStack(alignment: .trailing, spacing: 2) {
-                if let days = forecast.daysUntilRunOut {
-                    Text(days < 1 ? "< 1" : "\(Int(days))")
+            // PAR (weekly)
+            Group {
+                if let par = forecast.effective_weekly_par ?? forecast.par_level {
+                    Text(fmtQty(par))
                         .font(AppTypography.bodyMedium)
-                        .foregroundColor(days < 3 ? theme.error : theme.textPrimary)
-                    Text("days left")
-                        .font(AppTypography.small)
-                        .foregroundColor(theme.textTertiary)
+                        .foregroundColor(theme.textSecondary)
                 } else {
                     Text("—")
                         .font(AppTypography.body)
                         .foregroundColor(theme.textTertiary)
                 }
             }
-            .frame(width: 70)
+            .frame(width: 90, alignment: .trailing)
 
-            // Order qty
-            if let qty = forecast.recommended_order_qty, qty > 0 {
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text(formatQuantity(qty))
+            // Days Left
+            Group {
+                if let days = forecast.daysUntilRunOut {
+                    Text(days < 1 ? "< 1" : "\(Int(days))")
                         .font(AppTypography.bodyMedium)
-                        .foregroundColor(theme.textLink)
-                    Text("order")
-                        .font(AppTypography.small)
+                        .foregroundColor(days < 3 ? theme.error : days < 7 ? theme.warning : theme.textPrimary)
+                } else {
+                    Text("—")
+                        .font(AppTypography.body)
                         .foregroundColor(theme.textTertiary)
                 }
-                .frame(width: 60)
             }
+            .frame(width: 90, alignment: .trailing)
 
-            // Status badge
+            // Order Qty — always show column even if nil
+            Group {
+                if let qty = forecast.recommended_order_qty, qty > 0 {
+                    Text(fmtQty(qty))
+                        .font(AppTypography.bodyMedium)
+                        .foregroundColor(theme.textLink)
+                } else {
+                    Text("—")
+                        .font(AppTypography.body)
+                        .foregroundColor(theme.textTertiary)
+                }
+            }
+            .frame(width: 100, alignment: .trailing)
+
+            // Status badge — always same width
             statusBadge
-                .frame(width: 56)
+                .frame(width: 72)
         }
-        .padding(.horizontal, AppSpacing.md)
+        .padding(.horizontal, AppSpacing.lg)
         .padding(.vertical, 10)
-        .background(
-            RoundedRectangle(cornerRadius: AppRadius.md)
-                .fill(isSelected ? theme.bgSecondary : theme.bgCard)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: AppRadius.md)
-                .stroke(theme.borderSubtle, lineWidth: 1)
-        )
+        .background(isSelected ? theme.bgSecondary : Color.clear)
+        .contentShape(Rectangle())
     }
 
     private var statusColor: Color {
@@ -330,9 +360,8 @@ struct PredictionRow: View {
         }
     }
 
-    private func formatQuantity(_ value: Double) -> String {
-        if value == value.rounded() { return String(format: "%.0f", value) }
-        return String(format: "%.1f", value)
+    private func fmtQty(_ value: Double) -> String {
+        value == value.rounded() ? String(format: "%.0f", value) : String(format: "%.1f", value)
     }
 }
 
@@ -345,7 +374,6 @@ struct PredictionDetailPanel: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: AppSpacing.lg) {
-                // Header
                 VStack(alignment: .leading, spacing: AppSpacing.sm) {
                     Text(forecast.name)
                         .font(AppTypography.titleSmall)
@@ -360,42 +388,57 @@ struct PredictionDetailPanel: View {
 
                 Divider().background(theme.borderSubtle)
 
-                // Key metrics
-                HStack(spacing: AppSpacing.md) {
-                    MetricCard(title: "On Hand", value: "\(formatQuantity(forecast.on_hand)) \(forecast.unit)", theme: theme)
-                    MetricCard(title: "Daily Usage", value: "\(formatQuantity(forecast.avg_daily_usage)) \(forecast.unit)", theme: theme)
-                }
-
-                HStack(spacing: AppSpacing.md) {
+                // Key metrics in grid
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: AppSpacing.sm) {
+                    MetricCard(title: "On Hand", value: "\(fmtQty(forecast.on_hand)) \(forecast.unit)", theme: theme)
+                    MetricCard(title: "Daily Usage", value: "\(fmtQty(forecast.avg_daily_usage)) \(forecast.unit)", theme: theme)
                     MetricCard(title: "Run Out", value: forecast.formattedRunOut, theme: theme)
                     if let qty = forecast.recommended_order_qty {
-                        MetricCard(title: "Order Qty", value: "\(formatQuantity(qty)) \(forecast.unit)", theme: theme)
+                        MetricCard(title: "Order Qty", value: "\(fmtQty(qty)) \(forecast.unit)", theme: theme)
                     }
                 }
 
                 Divider().background(theme.borderSubtle)
 
-                // Forecast details
+                // PAR section
                 VStack(alignment: .leading, spacing: AppSpacing.md) {
-                    Text("Forecast Details")
+                    Text("PAR Levels")
                         .font(AppTypography.headline)
                         .foregroundColor(theme.textPrimary)
 
-                    DetailRow(label: "Smoothed Level", value: formatQuantity(forecast.smoothed_level), theme: theme)
+                    if let par = forecast.par_level {
+                        DetailRow(label: "Set Par Level", value: "\(fmtQty(par)) \(forecast.unit)", theme: theme)
+                    } else {
+                        DetailRow(label: "Set Par Level", value: "Not configured", theme: theme)
+                    }
+                    if let ref = forecast.reference_weekly_par {
+                        DetailRow(label: "Reference Weekly PAR", value: fmtQty(ref), theme: theme)
+                    }
+                    if let learned = forecast.learned_weekly_par {
+                        DetailRow(label: "Learned Weekly PAR", value: fmtQty(learned), theme: theme)
+                    }
+                    if let effective = forecast.effective_weekly_par {
+                        DetailRow(label: "Effective Weekly PAR", value: fmtQty(effective), theme: theme)
+                    }
+                    if let period = forecast.par_period_days {
+                        DetailRow(label: "PAR Period", value: "\(period) days", theme: theme)
+                    }
+                }
+
+                Divider().background(theme.borderSubtle)
+
+                // Forecast model details
+                VStack(alignment: .leading, spacing: AppSpacing.md) {
+                    Text("Forecast Model")
+                        .font(AppTypography.headline)
+                        .foregroundColor(theme.textPrimary)
+
+                    DetailRow(label: "Smoothed Level", value: fmtQty(forecast.smoothed_level), theme: theme)
                     DetailRow(label: "Trend Slope", value: String(format: "%.3f", forecast.trend_slope), theme: theme)
                     DetailRow(label: "Alpha", value: String(format: "%.2f", forecast.alpha), theme: theme)
                     DetailRow(label: "Shrink Rate", value: String(format: "%.1f%%", forecast.shrink_rate * 100), theme: theme)
-
-                    if let par = forecast.par_level {
-                        DetailRow(label: "Par Level", value: "\(formatQuantity(par)) \(forecast.unit)", theme: theme)
-                    }
-
                     if let lead = forecast.lead_time_days {
                         DetailRow(label: "Lead Time", value: "\(lead) days", theme: theme)
-                    }
-
-                    if let weeklyPar = forecast.effective_weekly_par {
-                        DetailRow(label: "Weekly PAR", value: formatQuantity(weeklyPar), theme: theme)
                     }
                 }
             }
@@ -404,9 +447,8 @@ struct PredictionDetailPanel: View {
         .background(theme.bgSurface)
     }
 
-    private func formatQuantity(_ value: Double) -> String {
-        if value == value.rounded() { return String(format: "%.0f", value) }
-        return String(format: "%.1f", value)
+    private func fmtQty(_ value: Double) -> String {
+        value == value.rounded() ? String(format: "%.0f", value) : String(format: "%.1f", value)
     }
 }
 

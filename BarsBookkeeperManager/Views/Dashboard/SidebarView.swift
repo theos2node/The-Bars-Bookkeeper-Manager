@@ -3,6 +3,7 @@ import SwiftUI
 enum SidebarTab: String, CaseIterable, Identifiable {
     case inventory = "Inventory"
     case requests = "Requests"
+    case imports = "Imports"
     case predictions = "Predictions"
     case orders = "Orders"
     case settings = "Settings"
@@ -13,6 +14,7 @@ enum SidebarTab: String, CaseIterable, Identifiable {
         switch self {
         case .inventory: return "square.grid.2x2"
         case .requests: return "doc.text"
+        case .imports: return "tray.and.arrow.down"
         case .predictions: return "sparkles"
         case .orders: return "cart"
         case .settings: return "gearshape"
@@ -31,9 +33,11 @@ struct SidebarView: View {
         VStack(spacing: 0) {
             // Brand header
             HStack(spacing: 10) {
-                Image(systemName: "wineglass.fill")
-                    .font(.system(size: 18))
-                    .foregroundColor(theme.textLink)
+                Image("AppLogo")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 22, height: 22)
+                    .clipShape(RoundedRectangle(cornerRadius: 4))
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Bars Bookkeeper")

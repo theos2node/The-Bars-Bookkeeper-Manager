@@ -44,6 +44,15 @@ The app mirrors the web application's design language:
 
 The app connects to `https://barsbookkeeper.com/api` by default. You can change the API URL in Settings > Connection.
 
+## Documentation
+
+- Contributor workflow: `CONTRIBUTING.md`
+- Architecture overview: `docs/ARCHITECTURE.md`
+- API contract and compatibility checklist: `docs/API_COMPATIBILITY.md`
+- Repo strategy (split repo + integration): `docs/REPO_STRATEGY.md`
+
+If you plan to contribute across both repos (backend + iPad app), start with `CONTRIBUTING.md` and `docs/API_COMPATIBILITY.md` first.
+
 ## Project Structure
 
 ```
@@ -73,3 +82,12 @@ This is **not** a standalone app — it works alongside your existing Bars Bookk
 - Role-based access control
 
 Any changes made in the iPad app are immediately reflected in the web app and vice versa.
+
+## Safe Contribution Strategy
+
+Contributing is a good idea if you treat this as an API-coupled client:
+
+1. Keep PRs small and focused.
+2. Run the simulator build before every PR.
+3. Validate impacted screens manually.
+4. Coordinate backend response changes with matching app model updates.

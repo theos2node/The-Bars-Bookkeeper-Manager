@@ -142,6 +142,130 @@ final class APIService: ObservableObject {
         return response.onHand
     }
 
+    // MARK: - Imports
+
+    func uploadImportFile(
+        token: String,
+        source: String = "auto",
+        fileName: String,
+        mimeType: String,
+        contentBase64: String,
+        metadata: [String: String]? = nil
+    ) async throws -> ImportQueueResponse {
+        struct Body: Encodable {
+            let source: String
+            let fileName: String
+            let mimeType: String
+            let contentBase64: String
+            let metadata: [String: String]?
+        }
+
+        return try await request(
+            method: "POST",
+            path: "/imports/upload",
+            token: token,
+            body: Body(
+                source: source,
+                fileName: fileName,
+                mimeType: mimeType,
+                contentBase64: contentBase64,
+                metadata: metadata
+            )
+        )
+    }
+
+    func uploadImportFileFromData(
+        token: String,
+        source: String = "auto",
+        fileName: String,
+        mimeType: String,
+        data: Data,
+        metadata: [String: String]? = nil
+    ) async throws -> ImportQueueResponse {
+        do {
+            struct InitiateBody: Encodable {
+                let purpose: String
+                let fileName: String
+                let mimeType: String
+                let sizeBytes: Int
+                let metadata: [String: String]?
+            }
+
+            let initiated: UploadInitiateResponse = try await request(
+                method: "POST",
+                path: "/uploads/initiate",
+                token: token,
+                body: InitiateBody(
+                    purpose: "data_import",
+                    fileName: fileName,
+                    mimeType: mimeType,
+                    sizeBytes: data.count,
+                    metadata: metadata
+                )
+            )
+
+            guard let uploadURL = URL(string: initiated.uploadUrl) else {
+                throw APIError.serverError("Invalid upload URL")
+            }
+
+            var uploadRequest = URLRequest(url: uploadURL)
+            uploadRequest.httpMethod = "PUT"
+            for (key, value) in initiated.headers {
+                uploadRequest.setValue(value, forHTTPHeaderField: key)
+            }
+            if uploadRequest.value(forHTTPHeaderField: "Content-Type") == nil {
+                uploadRequest.setValue(mimeType, forHTTPHeaderField: "Content-Type")
+            }
+
+            let (_, uploadResponse): (Data, URLResponse)
+            do {
+                (_, uploadResponse) = try await URLSession.shared.upload(for: uploadRequest, from: data)
+            } catch {
+                throw APIError.networkError(error)
+            }
+
+            guard let httpUploadResponse = uploadResponse as? HTTPURLResponse,
+                  (200..<300).contains(httpUploadResponse.statusCode) else {
+                throw APIError.serverError("Upload failed")
+            }
+
+            struct EmptyBody: Encodable {}
+            let _: UploadCompleteResponse = try await request(
+                method: "POST",
+                path: "/uploads/\(initiated.uploadId)/complete",
+                token: token,
+                body: EmptyBody()
+            )
+
+            struct QueueBody: Encodable {
+                let source: String
+                let metadata: [String: String]?
+            }
+
+            return try await request(
+                method: "POST",
+                path: "/imports/uploads/\(initiated.uploadId)/queue",
+                token: token,
+                body: QueueBody(source: source, metadata: metadata)
+            )
+        } catch {
+            let contentBase64 = data.base64EncodedString()
+            return try await uploadImportFile(
+                token: token,
+                source: source,
+                fileName: fileName,
+                mimeType: mimeType,
+                contentBase64: contentBase64,
+                metadata: metadata
+            )
+        }
+    }
+
+    func fetchImportRun(token: String, id: String) async throws -> ImportRun {
+        let response: ImportRunResponse = try await request(path: "/imports/runs/\(id)", token: token)
+        return response.run
+    }
+
     // MARK: - Requests
 
     func fetchRequests(token: String, status: String? = nil) async throws -> [StockRequest] {
@@ -231,4 +355,41 @@ struct RunForecastResponse: Codable {
     let runId: String
     let runAt: String
     let inserted: Int
+}
+
+struct ImportQueueResponse: Codable {
+    let importRunId: String
+    let jobId: String?
+    let deduped: Bool?
+}
+
+struct ImportRunResponse: Codable {
+    let run: ImportRun
+}
+
+struct ImportRun: Codable, Identifiable {
+    let id: String
+    let source: String
+    let external_ref: String?
+    let status: String
+    let checksum: String?
+    let error: String?
+    let document_date: String?
+    let file_classification: String?
+    let started_at: String?
+    let finished_at: String?
+}
+
+struct UploadInitiateResponse: Codable {
+    let uploadId: String
+    let uploadUrl: String
+    let headers: [String: String]
+}
+
+struct UploadCompleteResponse: Codable {
+    let upload: UploadRecord
+}
+
+struct UploadRecord: Codable {
+    let id: String
 }

@@ -47,8 +47,8 @@ struct RequestsView: View {
             } else if filteredRequests.isEmpty {
                 EmptyStateView(
                     icon: "doc.text",
-                    title: statusFilter == .pending ? "No pending requests" : "No requests found",
-                    subtitle: "Stock requests from staff will appear here."
+                    title: statusFilter == .pending ? "All clear, no requests yet" : "No requests found",
+                    subtitle: statusFilter == .pending ? "You're all caught up." : "Stock requests from staff will appear here."
                 )
             } else {
                 requestsList
@@ -144,9 +144,29 @@ struct RequestsView: View {
             requests = try await APIService.shared.fetchRequests(token: token)
         } catch {
             authService.handleAuthError(error)
-            errorMessage = error.localizedDescription
+            if shouldTreatAsNoRequests(error) {
+                requests = []
+                errorMessage = nil
+            } else {
+                errorMessage = error.localizedDescription
+            }
         }
         isLoading = false
+    }
+
+    private func shouldTreatAsNoRequests(_ error: Error) -> Bool {
+        guard let apiError = error as? APIError else { return false }
+
+        switch apiError {
+        case .serverError(let message):
+            let normalized = message.lowercased()
+            return normalized.contains("request failed with status 404")
+                || normalized.contains("requests_fetch_failed")
+                || normalized.contains("request_not_found")
+                || normalized.contains("no requests")
+        default:
+            return false
+        }
     }
 
     private func handleAction(id: String, status: String) async {
