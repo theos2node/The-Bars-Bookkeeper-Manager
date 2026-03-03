@@ -23,4 +23,5 @@ struct TenantInfo: Codable {
 
 struct ErrorResponse: Codable {
     let error: String
+    let detail: String?
 }

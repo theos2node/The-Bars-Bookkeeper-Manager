@@ -10,11 +10,17 @@ fi
 assert_json_has_keys() {
   local payload="$1"
   shift
-  python3 - "$payload" "$@" << 'PY'
+  local payload_file
+  payload_file=$(mktemp)
+  trap 'rm -f "$payload_file"' RETURN
+  printf '%s' "$payload" > "$payload_file"
+
+  python3 - "$payload_file" "$@" << 'PY'
 import json
 import sys
 
-payload = json.loads(sys.argv[1])
+with open(sys.argv[1], "r", encoding="utf-8") as fh:
+    payload = json.load(fh)
 keys = sys.argv[2:]
 missing = [k for k in keys if k not in payload]
 if missing:

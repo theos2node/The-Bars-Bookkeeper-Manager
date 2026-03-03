@@ -39,12 +39,35 @@ final class APIService: ObservableObject {
     }
 
     private func makeURL(_ path: String, query: [String: String]? = nil) -> URL? {
-        var urlString = "\(baseURL)\(path)"
-        if let query = query, !query.isEmpty {
-            let queryString = query.map { "\($0.key)=\($0.value)" }.joined(separator: "&")
-            urlString += "?\(queryString)"
+        guard var components = URLComponents(string: "\(baseURL)\(path)") else {
+            return nil
         }
-        return URL(string: urlString)
+        if let query, !query.isEmpty {
+            components.queryItems = query.map { URLQueryItem(name: $0.key, value: $0.value) }
+        }
+        return components.url
+    }
+
+    private func fallbackServerMessage(from data: Data, statusCode: Int) -> String {
+        guard
+            let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else {
+            return "Request failed with status \(statusCode)"
+        }
+
+        let error = String(describing: object["error"] ?? "")
+        let detail = String(describing: object["detail"] ?? "")
+
+        if !error.isEmpty && error != "nil" && !detail.isEmpty && detail != "nil" {
+            return "\(error): \(detail)"
+        }
+        if !error.isEmpty && error != "nil" {
+            return error
+        }
+        if !detail.isEmpty && detail != "nil" {
+            return detail
+        }
+        return "Request failed with status \(statusCode)"
     }
 
     private func request<T: Decodable>(
@@ -87,9 +110,15 @@ final class APIService: ObservableObject {
 
         if httpResponse.statusCode >= 400 {
             if let errorResponse = try? JSONDecoder().decode(ErrorResponse.self, from: data) {
+                let detail = errorResponse.detail?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                if !detail.isEmpty {
+                    throw APIError.serverError("\(errorResponse.error): \(detail)")
+                }
                 throw APIError.serverError(errorResponse.error)
             }
-            throw APIError.serverError("Request failed with status \(httpResponse.statusCode)")
+            throw APIError.serverError(
+                fallbackServerMessage(from: data, statusCode: httpResponse.statusCode)
+            )
         }
 
         do {

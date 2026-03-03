@@ -605,7 +605,7 @@ private struct ImportQueueRow: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 if let classification = item.fileClassification {
-                    Text("Type: \(classification)")
+                    Text("Type: \(formattedClassification(classification))")
                         .font(AppTypography.small)
                         .foregroundColor(theme.textSecondary)
                 }
@@ -615,7 +615,7 @@ private struct ImportQueueRow: View {
                         .foregroundColor(theme.textSecondary)
                 }
                 if let strategy = item.ingestStrategy {
-                    Text("Ingest strategy: \(strategy)")
+                    Text("Ingest strategy: \(formattedIngestStrategy(strategy))")
                         .font(AppTypography.small)
                         .foregroundColor(theme.textSecondary)
                 }
@@ -625,19 +625,19 @@ private struct ImportQueueRow: View {
                         .foregroundColor(theme.textSecondary)
                 }
                 if let gate = item.qualityGateStatus {
-                    Text("Quality gate: \(gate)")
+                    Text("Quality gate: \(gate.uppercased())")
                         .font(AppTypography.small)
-                        .foregroundColor(theme.textSecondary)
+                        .foregroundColor(gate.lowercased() == "pass" ? theme.success : theme.warning)
                 }
                 if let affectsInventory = item.affectsInventory {
                     Text("Affects inventory: \(affectsInventory ? "yes" : "no")")
                         .font(AppTypography.small)
-                        .foregroundColor(theme.textSecondary)
+                        .foregroundColor(affectsInventory ? theme.textSecondary : theme.warning)
                 }
                 if let affectsForecast = item.affectsForecast {
                     Text("Affects forecast: \(affectsForecast ? "yes" : "no")")
                         .font(AppTypography.small)
-                        .foregroundColor(theme.textSecondary)
+                        .foregroundColor(affectsForecast ? theme.textSecondary : theme.warning)
                 }
                 if let runId = item.importRunId {
                     Text("Run: \(runId)")
@@ -695,6 +695,37 @@ private struct ImportQueueRow: View {
             index += 1
         }
         return index == 0 ? "\(Int(value)) \(units[index])" : String(format: "%.1f %@", value, units[index])
+    }
+
+    private func formattedClassification(_ value: String) -> String {
+        switch value.lowercased() {
+        case "invoice_image": return "Invoice Image"
+        case "invoice_csv": return "Invoice CSV"
+        case "sales_csv": return "Sales CSV"
+        case "inventory_count": return "Inventory Count"
+        case "menu_recipe": return "Menu Recipe"
+        case "unknown": return "Unknown"
+        default:
+            return value.replacingOccurrences(of: "_", with: " ").capitalized
+        }
+    }
+
+    private func formattedIngestStrategy(_ value: String) -> String {
+        let lower = value.lowercased()
+        switch lower {
+        case "universal_ingest": return "Universal Ingest"
+        case "semantic_salvage": return "Semantic Salvage"
+        case "deterministic_auto_csv": return "Deterministic CSV Route"
+        case "format_transcode:xlsx_to_csv": return "Transcode XLSX -> CSV"
+        case "format_transcode:zip_extract": return "Transcode ZIP Extract"
+        case "format_transcode:json_to_csv": return "Transcode JSON -> CSV"
+        case "format_transcode:text_extraction": return "Text Extraction"
+        default:
+            if lower.hasPrefix("format_transcode:") {
+                return "Transcode: \(value.replacingOccurrences(of: "format_transcode:", with: ""))"
+            }
+            return value.replacingOccurrences(of: "_", with: " ").capitalized
+        }
     }
 }
 
