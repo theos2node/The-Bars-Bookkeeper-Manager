@@ -1,0 +1,37 @@
+# Xcode
+build/
+DerivedData/
+*.xcuserdata
+*.xcworkspace
+xcuserdata/
+*.xcscmblueprint
+
+# Xcode User State
+*.xcuserstate
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# CocoaPods
+Pods/
+
+# Swift Package Manager
+.build/
+.swiftpm/
+
+# Temporary files
+*.swp
+*.lock
+*.bak
+
+# Reference assets
+logo-reference.png
+
+# Old scaffold files (pre-existing Xcode template)
+The Bars Bookkeeper Manager/
+The Bars Bookkeeper Manager.xcodeproj/
+The Bars Bookkeeper ManagerTests/
+The Bars Bookkeeper ManagerUITests/
