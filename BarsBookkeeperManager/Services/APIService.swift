@@ -70,6 +70,31 @@ final class APIService: ObservableObject {
         return "Request failed with status \(statusCode)"
     }
 
+    private func userFacingServerMessage(error: String, detail: String?) -> String {
+        let code = error.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if code == "invalid_credentials" {
+            return "Invalid email or password."
+        }
+        if code == "google_signin_required" {
+            return "This account is linked to Google. Use Google sign-in on the web app."
+        }
+        if code == "account_not_found" {
+            return "No account found for this email."
+        }
+        if code == "google_account_linked_elsewhere" {
+            return "This email is linked to a different Google account."
+        }
+        if code == "google_email_conflict" {
+            return "Google email conflict detected. Contact support."
+        }
+
+        let trimmedDetail = detail?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !trimmedDetail.isEmpty {
+            return "\(error): \(trimmedDetail)"
+        }
+        return error
+    }
+
     private func request<T: Decodable>(
         method: String = "GET",
         path: String,
@@ -104,17 +129,26 @@ final class APIService: ObservableObject {
             throw APIError.unknown
         }
 
+        let errorResponse = try? JSONDecoder().decode(ErrorResponse.self, from: data)
+
         if httpResponse.statusCode == 401 {
+            if let errorResponse {
+                let code = errorResponse.error.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                if code == "missing_auth" || code == "invalid_auth" {
+                    throw APIError.unauthorized
+                }
+                throw APIError.serverError(
+                    userFacingServerMessage(error: errorResponse.error, detail: errorResponse.detail)
+                )
+            }
             throw APIError.unauthorized
         }
 
         if httpResponse.statusCode >= 400 {
-            if let errorResponse = try? JSONDecoder().decode(ErrorResponse.self, from: data) {
-                let detail = errorResponse.detail?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-                if !detail.isEmpty {
-                    throw APIError.serverError("\(errorResponse.error): \(detail)")
-                }
-                throw APIError.serverError(errorResponse.error)
+            if let errorResponse {
+                throw APIError.serverError(
+                    userFacingServerMessage(error: errorResponse.error, detail: errorResponse.detail)
+                )
             }
             throw APIError.serverError(
                 fallbackServerMessage(from: data, statusCode: httpResponse.statusCode)
